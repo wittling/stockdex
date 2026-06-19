@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.7
+
+### Fixed
+
+- Fixed `yahoo_api_financials` (and related income statement, balance sheet, cash flow methods) dropping recent years' data (2024, 2025) due to using the last column's date index when constructing the DataFrame.
+
+## 1.2.6
+
+### Fixed
+
+- `yahoo_web_balance_sheet`, `yahoo_web_cashflow`, and `yahoo_web_income_stmt` now return **all rows** including expandable/hidden rows from Yahoo Finance by fetching data via the Yahoo timeseries API instead of only scraping the visible HTML rows.
+
 ## 1.0.8
 
 ### Added

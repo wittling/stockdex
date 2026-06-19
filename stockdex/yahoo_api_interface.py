@@ -368,14 +368,14 @@ class YahooAPI(TickerBase):
 
             row[column] = pd.Series(values, index=dated_index)
 
-        return pd.DataFrame(row, index=dated_index)
+        return pd.DataFrame(row)
 
     def plot_yahoo_api_income_statement(
         self,
         frequency: Literal["annual", "quarterly"] = "annual",
         period1: datetime = five_years_ago,
         period2: datetime = today,
-        group_by: Literal["timeframe, field"] = "timeframe",
+        group_by: Literal["timeframe", "field"] = "timeframe",
         fields_to_include: list = [
             "TotalRevenue",
             "EBITDA",
@@ -444,7 +444,7 @@ class YahooAPI(TickerBase):
         frequency: Literal["annual", "quarterly"] = "annual",
         period1: datetime = five_years_ago,
         period2: datetime = today,
-        group_by: Literal["timeframe, field"] = "timeframe",
+        group_by: Literal["timeframe", "field"] = "timeframe",
         fields_to_include: list = [
             "OperatingCashFlow",
             "FreeCashFlow",
@@ -510,7 +510,7 @@ class YahooAPI(TickerBase):
         frequency: Literal["annual", "quarterly"] = "annual",
         period1: datetime = five_years_ago,
         period2: datetime = today,
-        group_by: Literal["timeframe, field"] = "timeframe",
+        group_by: Literal["timeframe", "field"] = "timeframe",
         fields_to_include: list = [
             "TotalAssets",
             "TotalDebt",
@@ -576,7 +576,7 @@ class YahooAPI(TickerBase):
         frequency: Literal["annual", "quarterly"] = "annual",
         period1: datetime = five_years_ago,
         period2: datetime = today,
-        group_by: Literal["timeframe, field"] = "timeframe",
+        group_by: Literal["timeframe", "field"] = "timeframe",
         fields_to_include: list = [
             "TotalRevenue",
             "EBITDA",

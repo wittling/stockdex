@@ -3,6 +3,7 @@ Module for interfacing with the Macrotrends website.
 """
 
 import re
+from functools import lru_cache
 from typing import Literal, Union
 
 import pandas as pd
@@ -12,7 +13,6 @@ from bs4 import BeautifulSoup
 from stockdex.config import MACROTRENDS_BASE_URL, VALID_SECURITY_TYPES
 from stockdex.exceptions import FieldNotExists
 from stockdex.lib import check_security_type, plot_dataframe
-from stockdex.selenium_interface import selenium_interface
 from stockdex.ticker_base import TickerBase
 
 
@@ -32,6 +32,7 @@ class MacrotrendsInterface(TickerBase):
         self.security_type = security_type
 
     @property
+    @lru_cache(maxsize=None)
     def full_name(self) -> str:
         """
         Retrieve the full name of the security.
@@ -59,20 +60,29 @@ class MacrotrendsInterface(TickerBase):
         pd.DataFrame
             The table as a pandas DataFrame.
         """
-        table = self.find_parent_by_text(soup=soup, tag="div", text=text_to_look_for)
-
-        data = []
-        # get var originalData from the table
-        for script in table.find_all("script"):
+        # Search all script tags on the page for originalData
+        original_data = None
+        for script in soup.find_all("script"):
             if "originalData" in script.get_text():
                 original_data = script.get_text()
                 break
 
+        if original_data is None:
+            raise RuntimeError(
+                f"Could not find originalData for '{text_to_look_for}' on the page"
+            )
+
         # get the data from the script
+        data = None
         for line in original_data.split("\n"):
-            if "originalData" in line:
+            if "originalData" in line and "=" in line:
                 data = line.split(" = ")[1]
                 break
+
+        if data is None:
+            raise ValueError(
+                f"Could not extract data from originalData for '{text_to_look_for}'"
+            )
 
         # convert the data to a pandas DataFrame
         data = data.replace(";", "")
@@ -83,13 +93,21 @@ class MacrotrendsInterface(TickerBase):
 
         return data
 
-    @property
-    def macrotrends_income_statement(self) -> pd.DataFrame:
+    @lru_cache(maxsize=None)
+    def macrotrends_income_statement(
+        self, frequency: Literal["quarterly", "annual"] = "annual"
+    ) -> pd.DataFrame:
         """
         Retrieve the income statement for the given ticker.
         """
         check_security_type(self.security_type, valid_types=["stock"])
-        url = f"{MACROTRENDS_BASE_URL}/{self.ticker}/TBD/income-statement"
+        frequency_suffix = "?freq=A" if frequency == "annual" else "?freq=Q"
+
+        url = (
+            f"{MACROTRENDS_BASE_URL}/{self.ticker}/{self.get_company_slug(self.ticker)}/income-statement{frequency_suffix}"  # NOQA: E501
+            if frequency == "quarterly"
+            else f"{MACROTRENDS_BASE_URL}/{self.ticker}/TBD/income-statement{frequency_suffix}"
+        )
 
         response = self.get_response(url)
 
@@ -106,19 +124,26 @@ class MacrotrendsInterface(TickerBase):
 
         return data
 
-    @property
-    def macrotrends_balance_sheet(self) -> pd.DataFrame:
+    @lru_cache(maxsize=None)
+    def macrotrends_balance_sheet(
+        self, frequency: Literal["quarterly", "annual"] = "annual"
+    ) -> pd.DataFrame:
         """
         Retrieve the balance sheet for the given ticker.
         """
         check_security_type(self.security_type, valid_types=["stock"])
-        url = f"{MACROTRENDS_BASE_URL}/{self.ticker}/TBD/balance-sheet"
+        frequency_suffix = "?freq=A" if frequency == "annual" else "?freq=Q"
 
-        # build selenium interface object if not already built
-        if not hasattr(self, "selenium_interface"):
-            self.selenium_interface = selenium_interface()
+        url = (
+            f"{MACROTRENDS_BASE_URL}/{self.ticker}/{self.get_company_slug(self.ticker)}/balance-sheet{frequency_suffix}"  # NOQA: E501
+            if frequency == "quarterly"
+            else f"{MACROTRENDS_BASE_URL}/{self.ticker}/TBD/balance-sheet{frequency_suffix}"
+        )
 
-        soup = self.selenium_interface.get_html_content(url)
+        response = self.get_response(url)
+
+        # Parse the HTML content of the website
+        soup = BeautifulSoup(response.content, "html.parser")
 
         data = self._find_table_in_url("Cash On Hand", soup)
 
@@ -130,19 +155,26 @@ class MacrotrendsInterface(TickerBase):
 
         return data
 
-    @property
-    def macrotrends_cash_flow(self) -> pd.DataFrame:
+    @lru_cache(maxsize=None)
+    def macrotrends_cash_flow(
+        self, frequency: Literal["quarterly", "annual"]
+    ) -> pd.DataFrame:
         """
         Retrieve the cash flow statement for the given ticker.
         """
         check_security_type(self.security_type, valid_types=["stock"])
-        url = f"{MACROTRENDS_BASE_URL}/{self.ticker}/TBD/cash-flow-statement"
+        frequency_suffix = "?freq=A" if frequency == "annual" else "?freq=Q"
 
-        # build selenium interface object if not already built
-        if not hasattr(self, "selenium_interface"):
-            self.selenium_interface = selenium_interface()
+        url = (
+            f"{MACROTRENDS_BASE_URL}/{self.ticker}/{self.get_company_slug(self.ticker)}/cash-flow-statement{frequency_suffix}"  # NOQA: E501
+            if frequency == "quarterly"
+            else f"{MACROTRENDS_BASE_URL}/{self.ticker}/TBD/cash-flow-statement{frequency_suffix}"
+        )
 
-        soup = self.selenium_interface.get_html_content(url)
+        response = self.get_response(url)
+
+        # Parse the HTML content of the website
+        soup = BeautifulSoup(response.content, "html.parser")
 
         data = self._find_table_in_url("Net Income/Loss", soup)
 
@@ -155,6 +187,7 @@ class MacrotrendsInterface(TickerBase):
         return data
 
     @property
+    @lru_cache(maxsize=None)
     def macrotrends_key_financial_ratios(self) -> pd.DataFrame:
         """
         Retrieve the key financial ratios for the given ticker.
@@ -162,11 +195,10 @@ class MacrotrendsInterface(TickerBase):
         check_security_type(self.security_type, valid_types=["stock"])
         url = f"{MACROTRENDS_BASE_URL}/{self.ticker}/TBD/financial-ratios"
 
-        # build selenium interface object if not already built
-        if not hasattr(self, "selenium_interface"):
-            self.selenium_interface = selenium_interface()
+        response = self.get_response(url)
 
-        soup = self.selenium_interface.get_html_content(url)
+        # Parse the HTML content of the website
+        soup = BeautifulSoup(response.content, "html.parser")
 
         data = self._find_table_in_url("Current Ratio", soup)
 
@@ -202,6 +234,7 @@ class MacrotrendsInterface(TickerBase):
         return data
 
     @property
+    @lru_cache(maxsize=None)
     def macrotrends_operating_margin(self) -> pd.DataFrame:
         """
         Retrieve the operating margin for the given ticker.
@@ -212,6 +245,7 @@ class MacrotrendsInterface(TickerBase):
         return self._find_margins_table(url, "TTM Operating Income")
 
     @property
+    @lru_cache(maxsize=None)
     def macrotrends_gross_margin(self) -> pd.DataFrame:
         """
         Retrieve the gross margin for the given ticker.
@@ -222,6 +256,7 @@ class MacrotrendsInterface(TickerBase):
         return self._find_margins_table(url, "Gross Margin")
 
     @property
+    @lru_cache(maxsize=None)
     def macrotrends_ebitda_margin(self) -> pd.DataFrame:
         """
         Retrieve the EBITDA margin for the given ticker.
@@ -232,6 +267,7 @@ class MacrotrendsInterface(TickerBase):
         return self._find_margins_table(url, "TTM EBITDA")
 
     @property
+    @lru_cache(maxsize=None)
     def macrotrends_pre_tax_margin(self) -> pd.DataFrame:
         """
         Retrieve the pre-tax margin for the given ticker.
@@ -242,6 +278,7 @@ class MacrotrendsInterface(TickerBase):
         return self._find_margins_table(url, "TTM Pre-Tax Income")
 
     @property
+    @lru_cache(maxsize=None)
     def macrotrends_net_margin(self) -> pd.DataFrame:
         """
         Retrieve the net profit margin for the given ticker.
@@ -251,6 +288,7 @@ class MacrotrendsInterface(TickerBase):
 
         return self._find_margins_table(url, "TTM Net Income")
 
+    @lru_cache(maxsize=None)
     def macrotrends_revenue(
         self, frequency: Literal["annual", "quarterly"] = "annual"
     ) -> pd.DataFrame:
@@ -260,11 +298,10 @@ class MacrotrendsInterface(TickerBase):
         check_security_type(self.security_type, valid_types=["stock"])
         url = f"{MACROTRENDS_BASE_URL}/{self.ticker}/TBD/revenue"
 
-        # build selenium interface object if not already built
-        if not hasattr(self, "selenium_interface"):
-            self.selenium_interface = selenium_interface()
+        response = self.get_response(url)
 
-        soup = self.selenium_interface.get_html_content(url)
+        # Parse the HTML content of the website
+        soup = BeautifulSoup(response.content, "html.parser")
 
         # find tables with class = historical_data_table
         tables = soup.find_all("table", class_="historical_data_table")
@@ -276,9 +313,11 @@ class MacrotrendsInterface(TickerBase):
 
         return df
 
+    @lru_cache(maxsize=None)
     def plot_macrotrends_income_statement(
         self,
         fields_to_include: list = ["Revenue", "Income After Taxes"],
+        frequency: Literal["annual", "quarterly"] = "annual",
         group_by: Literal["field", "timeframe"] = "timeframe",
         show_plot: bool = True,
     ) -> Union[px.line, px.bar]:
@@ -287,6 +326,12 @@ class MacrotrendsInterface(TickerBase):
 
         Args:
         ----------
+        fields_to_include : list
+            The fields to include in the plot.
+        frequency : Literal["annual", "quarterly"]
+            The frequency of the data to plot.
+        group_by : Literal["field", "timeframe"]
+            The level at which to group the data.
         show_plot : bool
             If the plot should be shown or not.
             If dash is used, this should be set to False
@@ -297,7 +342,9 @@ class MacrotrendsInterface(TickerBase):
         Union[px.line, px.bar]: The plotly figure
         """
         df = self._transform_df_for_plotting_macrotrends(
-            self.macrotrends_income_statement, fields_to_include, group_by
+            self.macrotrends_income_statement(frequency=frequency),
+            fields_to_include,
+            group_by,
         )
 
         fig = plot_dataframe(
@@ -311,6 +358,7 @@ class MacrotrendsInterface(TickerBase):
     def plot_macrotrends_balance_sheet(
         self,
         fields_to_include: list = ["Cash On Hand", "Total Assets", "Total Liabilities"],
+        frequency: Literal["annual", "quarterly"] = "annual",
         group_by: Literal["field", "timeframe"] = "timeframe",
         show_plot: bool = True,
     ) -> Union[px.line, px.bar]:
@@ -319,6 +367,12 @@ class MacrotrendsInterface(TickerBase):
 
         Args:
         ----------
+        fields_to_include : list
+            The fields to include in the plot.
+        frequency : Literal["annual", "quarterly"]
+            The frequency of the data to plot.
+        group_by : Literal["field", "timeframe"]
+            The level at which to group the data.
         show_plot : bool
             If the plot should be shown or not.
             If dash is used, this should be set to False
@@ -329,7 +383,7 @@ class MacrotrendsInterface(TickerBase):
         Union[px.line, px.bar]: The plotly figure
         """
         df = self._transform_df_for_plotting_macrotrends(
-            self.macrotrends_balance_sheet,
+            self.macrotrends_balance_sheet(frequency=frequency),
             fields_to_include,
             group_by,
         )
@@ -349,6 +403,7 @@ class MacrotrendsInterface(TickerBase):
             "Common Stock Dividends Paid",
             "Net Long-Term Debt",
         ],
+        frequency: Literal["annual", "quarterly"] = "annual",
         group_by: Literal["field", "timeframe"] = "timeframe",
         show_plot: bool = True,
     ) -> None:
@@ -357,6 +412,12 @@ class MacrotrendsInterface(TickerBase):
 
         Args:
         ----------
+        fields_to_include : list
+            The fields to include in the plot.
+        frequency : Literal["annual", "quarterly"]
+            The frequency of the data to plot.
+        group_by : Literal["field", "timeframe"]
+            The level at which to group the data.
         show_plot : bool
             If the plot should be shown or not.
             If dash is used, this should be set to False
@@ -367,12 +428,12 @@ class MacrotrendsInterface(TickerBase):
         Union[px.line, px.bar]: The plotly figure
         """
         df = self._transform_df_for_plotting_macrotrends(
-            self.macrotrends_cash_flow, fields_to_include, group_by
+            self.macrotrends_cash_flow(frequency=frequency), fields_to_include, group_by
         )
 
         fig = plot_dataframe(
             df,
-            title=f"{self.ticker} Cash Flow Statement (from Macrotrends)",
+            title=f"{self.ticker} Cash Flow Statement (from Macrotrends) using {frequency} data",
             show_plot=show_plot,
         )
 
@@ -415,9 +476,9 @@ class MacrotrendsInterface(TickerBase):
         # fill NaN values with 0
         df = df.fillna(0)
 
-        # convert all values to float and replace empty cells with 0
+        # convert all values to float if they are not and replace empty cells with 0
         df = df.replace(r"^\s*$", "0", regex=True).applymap(
-            lambda x: float(x.replace(",", ""))
+            lambda x: float(x.replace(",", "")) if isinstance(x, str) else x
         )
 
         # sort index in ascending order

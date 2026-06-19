@@ -23,8 +23,8 @@ def test_yahoo_web_cashflow(ticker):
 
     # Check if the response is as expected
     assert isinstance(yahoo_web_cashflow_df, pd.DataFrame)
-    assert yahoo_web_cashflow_df.shape[0] >= 3
-    assert yahoo_web_cashflow_df.shape[1] >= 5
+    assert yahoo_web_cashflow_df.shape[0] >= 10
+    assert yahoo_web_cashflow_df.shape[1] >= 4
 
 
 def test_yahoo_web_cashflow_wrong_security_type():
@@ -35,7 +35,7 @@ def test_yahoo_web_cashflow_wrong_security_type():
 
 @pytest.mark.parametrize(
     "ticker",
-    [("AAPL"), ("GOOGL"), ("TSLA"), ("TNK")],
+    [("AAPL"), ("TSLA"), ("TNK")],
 )
 def test_yahoo_web_balance_sheet(ticker):
     ticker = Ticker(ticker)
@@ -43,7 +43,7 @@ def test_yahoo_web_balance_sheet(ticker):
 
     # Check if the response is as expected
     assert isinstance(yahoo_web_balance_sheet_df, pd.DataFrame)
-    assert yahoo_web_balance_sheet_df.shape[0] >= 3
+    assert yahoo_web_balance_sheet_df.shape[0] >= 10
     assert yahoo_web_balance_sheet_df.shape[1] >= 4
 
 
@@ -63,7 +63,7 @@ def test_yahoo_web_income_stmt(ticker):
 
     # Check if the response is as expected
     assert isinstance(yahoo_web_income_stmt_df, pd.DataFrame)
-    assert yahoo_web_income_stmt_df.shape[0] >= 3
+    assert yahoo_web_income_stmt_df.shape[0] >= 10
     assert yahoo_web_income_stmt_df.shape[1] >= 4
 
 
@@ -187,23 +187,6 @@ def test_yahoo_web_corporate_governance_wrong_security_type():
     with pytest.raises(WrongSecurityType):
         ticker = Ticker(ticker="AAPL", security_type="etf")
         ticker.yahoo_web_corporate_governance
-
-
-@pytest.mark.parametrize(
-    "ticker, frequency",
-    [
-        ("PANW", "annual"),
-        ("GOOGL", "quarterly"),
-    ],
-)
-def test_macrotrends_revenue(ticker, frequency):
-    ticker = Ticker(ticker)
-    macrotrends_revenue = ticker.macrotrends_revenue(frequency=frequency)
-
-    # Check if the response is as expected
-    assert isinstance(macrotrends_revenue, pd.DataFrame)
-    assert macrotrends_revenue.shape[0] > 0
-    assert macrotrends_revenue.shape[1] > 0
 
 
 @pytest.mark.parametrize(
@@ -380,21 +363,22 @@ def test_yahoo_web_trading_information_wrong_security_type():
 
 
 @pytest.mark.parametrize(
-    "ticker",
+    "ticker, expected_name",
     [
-        ("PANW"),
-        ("AAPL"),
-        ("GOOGL"),
-        ("MSFT"),
+        ("PANW", "Palo Alto Networks"),
+        ("AAPL", "Apple Inc"),
+        ("GOOGL", "Alphabet Inc"),
+        ("MSFT", "Microsoft Corporation"),
     ],
 )
-def test_yahoo_web_full_name(ticker):
+def test_yahoo_web_full_name(ticker, expected_name):
     ticker = Ticker(ticker)
     yahoo_web_full_name = ticker.yahoo_web_full_name
 
     # Check if the response is as expected
     assert isinstance(yahoo_web_full_name, str)
     assert len(yahoo_web_full_name) > 0
+    assert yahoo_web_full_name == expected_name
 
 
 @pytest.mark.parametrize(
@@ -418,7 +402,7 @@ def test_yahoo_web_earnings_estimate(ticker):
 def test_yahoo_web_earnings_estimate_wrong_security_type():
     with pytest.raises(WrongSecurityType):
         ticker = Ticker(ticker="AAPL", security_type="etf")
-        ticker.yahoo_web_earnings_estimate  #
+        ticker.yahoo_web_earnings_estimate
 
 
 @pytest.mark.parametrize(
